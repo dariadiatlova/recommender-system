@@ -1,0 +1,10 @@
+implicit
+
+# if failed to install implicit with conda: conda install -c conda-forge/label/cf201901 implicit
+
+plotly
+torch
+plotly
+pandas
+numpy
+scikit-learn
