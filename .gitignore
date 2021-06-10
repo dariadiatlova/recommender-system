@@ -1,3 +1,5 @@
 *.csv
 *.ipynb
+
 .idea
+__pycache__/
