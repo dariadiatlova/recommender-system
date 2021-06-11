@@ -26,7 +26,7 @@ def get_user_timestamp_threshold():
         3. Takes the the percentile timestamp.
         4. Returns the median of computed timestamp percentiles.
     """
-    df = pd.read_csv(MAIN_FOLDER.parent / 'rating.csv')
+    df = pd.read_csv(MAIN_FOLDER.parent / 'filtered_rating.csv')
     user_id = np.unique(df[DatasetColumnName.USER_ID.value].to_numpy())
     user_id_sample = random.sample(list(user_id), TrainTestSize.SAMPLE_SIZE.value)
     thirty_percentile_timestamp = []

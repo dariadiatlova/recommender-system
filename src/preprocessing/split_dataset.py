@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def __get_time_wise_split():
     for _ in range(5):
         threshold_timestamp = get_user_timestamp_threshold()
-        df = pd.read_csv(MAIN_FOLDER.parent / 'rating.csv')
+        df = pd.read_csv(MAIN_FOLDER.parent / 'filtered_rating.csv')
         train_df = df[df[DatasetColumnName.TIMESTAMP.value] > threshold_timestamp]
         test_df = df[df[DatasetColumnName.TIMESTAMP.value] <= threshold_timestamp]
         test_size = np.round(test_df.shape[0] / df.shape[0], 2)
