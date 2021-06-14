@@ -10,6 +10,7 @@ class DatasetColumnName(Enum):
     USER_ID = 'userId'
     MOVIE_ID = 'movieId'
     TIMESTAMP = 'timestamp'
+    RATING = 'rating'
 
 
 @unique
@@ -20,13 +21,19 @@ class TrainTestSize(Enum):
     SAMPLE_SIZE = 5000
 
 
+@unique
+class EvaluationParams(Enum):
+    MIN_RATING = 4
+    K = 25
+
+
 def get_user_timestamp_threshold():
     """ 1. Picks a sample_size of unique ids of users.
         2. Sorts timestamps of chosen users in ascending order.
         3. Takes the the percentile timestamp.
         4. Returns the median of computed timestamp percentiles.
     """
-    df = pd.read_csv(MAIN_FOLDER.parent / 'filtered_rating.csv')
+    df = pd.read_csv(MAIN_FOLDER.parent / 'train_rating.csv')
     user_id = np.unique(df[DatasetColumnName.USER_ID.value].to_numpy())
     user_id_sample = random.sample(list(user_id), TrainTestSize.SAMPLE_SIZE.value)
     thirty_percentile_timestamp = []
@@ -38,5 +45,5 @@ def get_user_timestamp_threshold():
         thirty_percentile_timestamp.append(current_percentile)
 
     sorted_percentile_timestamp = pd.Series(thirty_percentile_timestamp).sort_values(ascending=False)
-    optimal_split_value = int(TrainTestSize.SAMPLE_SIZE.value * 0.6)
+    optimal_split_value = int(TrainTestSize.SAMPLE_SIZE.value * 0.7)
     return sorted_percentile_timestamp.to_numpy()[optimal_split_value]

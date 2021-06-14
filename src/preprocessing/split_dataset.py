@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def __get_time_wise_split():
     for _ in range(5):
         threshold_timestamp = get_user_timestamp_threshold()
-        df = pd.read_csv(MAIN_FOLDER.parent / 'filtered_rating.csv')
+        df = pd.read_csv(MAIN_FOLDER.parent / 'train_rating.csv')
         train_df = df[df[DatasetColumnName.TIMESTAMP.value] > threshold_timestamp]
         test_df = df[df[DatasetColumnName.TIMESTAMP.value] <= threshold_timestamp]
         test_size = np.round(test_df.shape[0] / df.shape[0], 2)
@@ -24,10 +24,9 @@ def __get_time_wise_split():
 
 def main():
     try:
-        train_df, test_df = __get_time_wise_split()
-        train_data, test_data = train_df.iloc[:, :3], test_df.iloc[:, :3]
+        train_data, test_data = __get_time_wise_split()
         train_data.to_csv(MAIN_FOLDER.parent / 'train_rating.csv', index=False)
-        test_data.to_csv(MAIN_FOLDER.parent / 'test_rating.csv', index=False)
+        test_data.to_csv(MAIN_FOLDER.parent / 'val_rating.csv', index=False)
     except TypeError as e:
         logger.error('Could not find the split to satisfy chosen parameters :( Try again or change the parameters!')
         raise e
