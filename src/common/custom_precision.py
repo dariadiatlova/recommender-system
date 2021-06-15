@@ -36,9 +36,8 @@ def compute_precision(model, sparse_user_item, movie_filtered_ids, user_filtered
 
         except KeyError:
             unknown += 1
-            # print(f'\rFound {unknown} unknown users :(', end='')
             # ignore cases when meet users we have not seen on test dataset
             pass
 
     print(f'Evaluated on {len(users) - unknown} users')
-    return np.round(np.mean(prediction_statistic), 3), prediction_statistic
+    return np.round(np.mean(prediction_statistic), 3)

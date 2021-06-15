@@ -46,11 +46,11 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
 
     parser.add_argument('-e', '--eval_mode',
                         help='If true, model will be evaluated on val dataset and results will be printed. Otherwise'
-                              ' will return trained model. Default is True. ',
+                              ' will return trained model and loss. Default is True. ',
                         action="store_false")
 
 
-def __get_data_encoded(data_path: str) -> Tuple[dict, dict]:
+def _get_data_encoded(data_path: str) -> Tuple[dict, dict]:
     df = pd.read_csv(data_path)
     users, movies = df[DatasetColumnName.USER_ID.value], df[DatasetColumnName.MOVIE_ID.value]
 
@@ -61,7 +61,7 @@ def __get_data_encoded(data_path: str) -> Tuple[dict, dict]:
     return movie_filtered_ids, user_filtered_ids
 
 
-def __get_sparse_matrix(movie_filtered_ids: dict, user_filtered_ids: dict, data_path: str):
+def _get_sparse_matrix(movie_filtered_ids: dict, user_filtered_ids: dict, data_path: str):
     df = pd.read_csv(data_path)
     movies = df[DatasetColumnName.MOVIE_ID.value]
     users = df[DatasetColumnName.USER_ID.value]
@@ -84,23 +84,27 @@ def __get_sparse_matrix(movie_filtered_ids: dict, user_filtered_ids: dict, data_
 def train(latent_dim: int, regularization: float, iterations: int, alpha: float, train_loss: bool,
           train_dataset_path: str, val_dataset_path: str, eval_mode: bool):
 
-    movie_filtered_ids, user_filtered_ids = __get_data_encoded(train_dataset_path)
+    movie_filtered_ids, user_filtered_ids = _get_data_encoded(train_dataset_path)
 
-    sparse_item_user, sparse_user_item = __get_sparse_matrix(movie_filtered_ids, user_filtered_ids, train_dataset_path)
+    sparse_item_user, sparse_user_item = _get_sparse_matrix(movie_filtered_ids, user_filtered_ids, train_dataset_path)
 
     model = implicit.als.AlternatingLeastSquares(factors=latent_dim,
                                                  regularization=regularization,
                                                  iterations=iterations,
-                                                 calculate_training_loss=train_loss)
+                                                 calculate_training_loss=train_loss,
+                                                 random_state=EvaluationParams.SEED.value)
 
-    model.fit((sparse_item_user * alpha).tocsr().astype(float))
-
+    # alpha * r_ui
+    matrix = (sparse_item_user * alpha).tocsr().astype(float)
+    # c_ui = 1 + alpha * r_ui
+    matrix.data += 1.
+    loss = model.fit(matrix)
     if eval_mode:
-        average_precision, precision_k = compute_precision(model, sparse_user_item, movie_filtered_ids,
-                                                           user_filtered_ids, val_dataset_path)
-        print(f'MAP: {average_precision}')
-        return average_precision, precision_k
-    return model
+        average_precision = compute_precision(model, sparse_user_item, movie_filtered_ids, user_filtered_ids,
+                                              val_dataset_path)
+        print(f'Precision@{EvaluationParams.K.value}: {average_precision}')
+        return average_precision
+    return model, loss
 
 
 def main():

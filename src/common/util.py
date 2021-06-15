@@ -25,6 +25,7 @@ class TrainTestSize(Enum):
 class EvaluationParams(Enum):
     MIN_RATING = 4
     K = 25
+    SEED = 42
 
 
 def get_user_timestamp_threshold():
