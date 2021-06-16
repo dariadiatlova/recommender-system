@@ -18,7 +18,7 @@ def mask_movies(matrix: sparse.coo_matrix) -> sparse.coo_matrix:
     return matrix.tocoo()
 
 
-def make_dataset(rating_dataset_path: str, tag_dataset_path: str) -> Tuple[sparse.coo_matrix, sparse.coo_matrix]:
+def make_dataset(rating_dataset_path: str, tag_dataset_path: str) -> Tuple[sparse.coo_matrix, sparse.coo_matrix, Dataset]:
 
     df_rating = pd.read_csv(rating_dataset_path)
     df_tag = pd.read_csv(tag_dataset_path)
@@ -34,4 +34,4 @@ def make_dataset(rating_dataset_path: str, tag_dataset_path: str) -> Tuple[spars
     user_item_interaction = mask_movies(weights)
     item_features = dataset.build_item_features([(row[0], {row[1]: row[2]}) for row in df_tag.values])
 
-    return user_item_interaction, item_features
+    return user_item_interaction, item_features, dataset
