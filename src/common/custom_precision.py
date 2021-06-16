@@ -1,43 +1,38 @@
-import pandas as pd
 import numpy as np
-
+import pandas as pd
 from src.common.util import DatasetColumnName, EvaluationParams
 
 
-def compute_precision(model, sparse_user_item, movie_filtered_ids, user_filtered_ids, val_dataset_path):
+def compute_precision(predictions, validation_dataset_path: str, movie_filtered_ids, user_filtered_ids, users) -> float:
+    inverse_encoding_us = dict(zip(user_filtered_ids.values(), user_filtered_ids.keys()))
+    inverse_encoding_mv = dict(zip(movie_filtered_ids.values(), movie_filtered_ids.keys()))
 
-    df = pd.read_csv(val_dataset_path)
-    users = df[DatasetColumnName.USER_ID.value].unique()
-    inverse_encoded_movies = dict(zip(list(movie_filtered_ids.values()), list(movie_filtered_ids.keys())))
-    prediction_statistic, unknown = [], 0
+    df = pd.read_csv(validation_dataset_path)
+    precision = []
 
-    for user in users:
+    for i, user in enumerate(users):
+        y_pred = predictions[i]
+        movies_of_user = df[df[DatasetColumnName.USER_ID.value] == inverse_encoding_us[user]]
+
+        relevant_movies = movies_of_user[DatasetColumnName.RATING.value] >= EvaluationParams.MIN_RATING.value
+        relevant_movies = movies_of_user[relevant_movies][DatasetColumnName.MOVIE_ID.value].tolist()
+
+        irrelevant_movies = movies_of_user[DatasetColumnName.RATING.value] < EvaluationParams.MIN_RATING.value
+        irrelevant_movies = movies_of_user[irrelevant_movies][DatasetColumnName.MOVIE_ID.value].tolist()
+
         true_positive, false_positive = 0, 0
-        try:
-            user_id = user_filtered_ids[user]
 
-            predictions = model.recommend(user_id, sparse_user_item,
-                                          N=EvaluationParams.K.value,
-                                          filter_already_liked_items=False)
+        for movie in y_pred:
 
-            movies_of_user = df[df[DatasetColumnName.USER_ID.value] == user]
-            relevant_movies = movies_of_user[DatasetColumnName.RATING.value] >= EvaluationParams.MIN_RATING.value
-            relevant_movies = movies_of_user[relevant_movies][DatasetColumnName.MOVIE_ID.value].tolist()
+            movie_id = inverse_encoding_mv[movie[0]]
+            if movie_id in relevant_movies:
+                true_positive += 1
+            elif movie_id in irrelevant_movies:
+                false_positive += 1
 
-            if relevant_movies:
-                for prediction in predictions:
-                    if inverse_encoded_movies[prediction[0]] in relevant_movies:
-                        if prediction[1] >= 1:
-                            true_positive += 1
-                        else:
-                            false_positive += 1
-                if true_positive > 0 or false_positive > 0:
-                    prediction_statistic.append(true_positive / (true_positive + false_positive))
+        if true_positive > 0 or false_positive > 0:
+            precision.append(true_positive / (true_positive + false_positive))
 
-        except KeyError:
-            unknown += 1
-            # ignore cases when meet users we have not seen on test dataset
-            pass
+    print(f'Evaluated on {len(precision)} users')
 
-    print(f'Evaluated on {len(users) - unknown} users')
-    return np.round(np.mean(prediction_statistic), 3)
+    return np.mean(precision)
