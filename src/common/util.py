@@ -14,6 +14,8 @@ class DatasetColumnName(Enum):
     MOVIE_ID = 'movieId'
     TIMESTAMP = 'timestamp'
     RATING = 'rating'
+    TAG = 'tag'
+    RELEVANCE = 'relevance'
 
 
 @unique
