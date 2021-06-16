@@ -1,10 +1,11 @@
 import argparse
 import implicit
 import pandas as pd
+import numpy as np
 import scipy.sparse as sparse
 
 from data import MAIN_FOLDER
-from src.common.util import DatasetColumnName, EvaluationParams
+from src.common.util import DatasetColumnName, EvaluationParams, plot
 from src.common.custom_precision import compute_precision
 from typing import Tuple
 
@@ -33,7 +34,7 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-i', '--iterations',
                         help='The number of iterations. Default is 15. ',
                         type=int,
-                        default=10)
+                        default=30)
 
     parser.add_argument('-l', '--train_loss',
                         help='If enables training loss will be logged. Default is True.',
@@ -50,71 +51,122 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
                         action="store_false")
 
 
-def _get_data_encoded(data_path: str) -> Tuple[dict, dict]:
-    df = pd.read_csv(data_path)
-    users, movies = df[DatasetColumnName.USER_ID.value], df[DatasetColumnName.MOVIE_ID.value]
+class ALS:
 
-    # dict with keys: original movie / user id and values: relevant movie/user id from range 0...len(unique()))
-    movie_filtered_ids = dict(zip(movies.unique(), range(len(movies.unique()))))
-    user_filtered_ids = dict(zip(users.unique(), range(len(users.unique()))))
+    def __init__(self):
+        self.sparse_item_user = None
+        self.sparse_user_item = None
+        self.predictions_encoded = None
+        self.irrelevant_movies = None
+        self.relevant_users = None
+        self.predictions = None
 
-    return movie_filtered_ids, user_filtered_ids
+    @staticmethod
+    def read_dataset(data_path: str) -> Tuple[pd.Series, pd.Series, pd.Series]:
+        df = pd.read_csv(data_path)
+        movies = df[DatasetColumnName.MOVIE_ID.value]
+        users = df[DatasetColumnName.USER_ID.value]
+        # rating = df[DatasetColumnName.RATING.value]
+        rating = df.iloc[:, 2]
+        return movies, users, rating
 
+    def _get_data_encoded(self, data_path: str) -> None:
+        df = pd.read_csv(data_path)
+        users, movies = df[DatasetColumnName.USER_ID.value], df[DatasetColumnName.MOVIE_ID.value]
+        # dict with keys: original movie / user id and values: relevant movie/user id from range 0...len(unique()))
+        self.movie_filtered_ids = dict(zip(movies.unique(), range(len(movies.unique()))))
+        self.user_filtered_ids = dict(zip(users.unique(), range(len(users.unique()))))
 
-def _get_sparse_matrix(movie_filtered_ids: dict, user_filtered_ids: dict, data_path: str):
-    df = pd.read_csv(data_path)
-    movies = df[DatasetColumnName.MOVIE_ID.value]
-    users = df[DatasetColumnName.USER_ID.value]
-    rating = df[DatasetColumnName.RATING.value]
+    def _get_sparse_matrix(self, data_path: str) -> Tuple[sparse.csr_matrix, sparse.csr_matrix]:
+        movies, users, rating = self.read_dataset(data_path)
+        n_movies, n_users = len(movies.unique()), len(users.unique())
 
-    n_movies, n_users = len(movies.unique()), len(users.unique())
+        rating.where(rating < EvaluationParams.MIN_RATING.value, 0, inplace=True)
+        rating.where(rating >= EvaluationParams.MIN_RATING.value, 1, inplace=True)
 
-    rating.where(rating < EvaluationParams.MIN_RATING.value, 0, inplace=True)
-    rating.where(rating >= EvaluationParams.MIN_RATING.value, 1, inplace=True)
+        movie_encoded_idx = [self.movie_filtered_ids[movie] for movie in movies]
+        user_encoded_idx = [self.user_filtered_ids[user] for user in users]
 
-    movie_encoded_idx = [movie_filtered_ids[movie] for movie in movies]
-    user_encoded_idx = [user_filtered_ids[user] for user in users]
+        self.sparse_item_user = sparse.csr_matrix((rating, (movie_encoded_idx, user_encoded_idx)),
+                                                  shape=(n_movies, n_users))
+        self.sparse_user_item = sparse.csr_matrix((rating, (user_encoded_idx, movie_encoded_idx)),
+                                                  shape=(n_users, n_movies))
+        return self.sparse_item_user, self.sparse_user_item
 
-    sparse_item_user = sparse.csr_matrix((rating, (movie_encoded_idx, user_encoded_idx)), shape=(n_movies, n_users))
-    sparse_user_item = sparse.csr_matrix((rating, (user_encoded_idx, movie_encoded_idx)), shape=(n_users, n_movies))
+    def train(self, latent_dim: int, regularization: float, iterations: int, alpha: float, train_loss: bool,
+              train_dataset_path: str):
 
-    return sparse_item_user, sparse_user_item
+        self._get_data_encoded(train_dataset_path)
 
+        self.sparse_item_user, self.sparse_user_item = self._get_sparse_matrix(train_dataset_path)
 
-def train(latent_dim: int, regularization: float, iterations: int, alpha: float, train_loss: bool,
-          train_dataset_path: str, val_dataset_path: str, eval_mode: bool):
+        model = implicit.als.AlternatingLeastSquares(factors=latent_dim,
+                                                     regularization=regularization,
+                                                     iterations=iterations,
+                                                     calculate_training_loss=train_loss,
+                                                     random_state=EvaluationParams.SEED.value)
 
-    movie_filtered_ids, user_filtered_ids = _get_data_encoded(train_dataset_path)
+        # alpha * r_ui
+        matrix = (self.sparse_item_user * alpha).tocsr().astype(float)
+        # c_ui = 1 + alpha * r_ui
+        matrix.data += 1.
+        loss = model.fit(matrix)
+        return loss, model
 
-    sparse_item_user, sparse_user_item = _get_sparse_matrix(movie_filtered_ids, user_filtered_ids, train_dataset_path)
+    def filter_users_for_validation(self, validation_dataset_path: str) -> None:
+        movies, users, rating = self.read_dataset(validation_dataset_path)
 
-    model = implicit.als.AlternatingLeastSquares(factors=latent_dim,
-                                                 regularization=regularization,
-                                                 iterations=iterations,
-                                                 calculate_training_loss=train_loss,
-                                                 random_state=EvaluationParams.SEED.value)
+        unique_movies = movies.unique()
+        unique_users = users.unique()
 
-    # alpha * r_ui
-    matrix = (sparse_item_user * alpha).tocsr().astype(float)
-    # c_ui = 1 + alpha * r_ui
-    matrix.data += 1.
-    loss = model.fit(matrix)
-    if eval_mode:
-        average_precision = compute_precision(model, sparse_user_item, movie_filtered_ids, user_filtered_ids,
-                                              val_dataset_path)
-        print(f'Precision@{EvaluationParams.K.value}: {average_precision}')
-        return average_precision
-    return model, loss
+        unique_movie_keys = self.movie_filtered_ids.keys()
+        unique_user_keys = self.user_filtered_ids.keys()
+
+        self.irrelevant_movies = [movie for movie in unique_movie_keys if self.movie_filtered_ids[movie] not in unique_movies]
+        self.relevant_users = [self.user_filtered_ids[user] for user in unique_users if user in unique_user_keys]
+
+    def get_encoded_predictions(self, model, val_dataset_path) -> None:
+        self.filter_users_for_validation(val_dataset_path)
+        self.predictions = []
+        for user in self.relevant_users:
+            top_k_movies = self.predict(model, user)
+            self.predictions.append(top_k_movies)
+
+    def predict(self, model, user: int) -> np.ndarray:
+        top_k_movies = model.recommend(user,
+                                       self.sparse_user_item.tocsr().astype(float),
+                                       N=EvaluationParams.K.value,
+                                       filter_already_liked_items=False,
+                                       filter_items=self.irrelevant_movies)
+        return top_k_movies
+
+    def get_metric(self, validation_dataset_path: str):
+        precision = compute_precision(self.predictions, validation_dataset_path, self.movie_filtered_ids,
+                                      self.user_filtered_ids, self.relevant_users)
+        return precision
 
 
 def main():
+    als = ALS()
     parser = argparse.ArgumentParser()
     configure_arguments(parser)
     args = parser.parse_args()
     print(f'\n Factors: {args.factors}\n Iterations: {args.iterations}\n Alpha: {args.alpha}\n '
           f'Regularization: {args.regularization}')
-    train(args.factors, args.regularization, args.iterations, args.alpha, args.train_loss,
-          args.train_dataset_path, args.val_dataset_path, args.eval_mode)
+
+    loss, model = als.train(args.factors,
+                            args.regularization,
+                            args.iterations,
+                            args.alpha,
+                            args.train_loss,
+                            args.train_dataset_path)
+
+    plot(loss, args.iterations)
+
+    if args.eval_mode:
+        als.get_encoded_predictions(model, args.val_dataset_path)
+        precision = als.get_metric(args.val_dataset_path)
+        print(f'Precision@{EvaluationParams.K.value}\n{precision}')
 
 
 if __name__ == "__main__":
