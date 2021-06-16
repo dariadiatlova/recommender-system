@@ -1,8 +1,11 @@
 import random
-from enum import Enum, unique
 import pandas as pd
+import plotly.graph_objects as go
 import numpy as np
+
+from enum import Enum, unique
 from data import MAIN_FOLDER
+from typing import List, NoReturn
 
 
 @unique
@@ -48,3 +51,12 @@ def get_user_timestamp_threshold():
     sorted_percentile_timestamp = pd.Series(thirty_percentile_timestamp).sort_values(ascending=False)
     optimal_split_value = int(TrainTestSize.SAMPLE_SIZE.value * 0.7)
     return sorted_percentile_timestamp.to_numpy()[optimal_split_value]
+
+
+def plot(loss: List, iterations: int) -> NoReturn:
+    x = np.arange(len(loss))
+    fig = go.Figure(data=go.Scatter(x=x, y=loss))
+    fig.update_layout(title=f'Loss convergence: {iterations} iterations',
+                      xaxis_title='Iteration',
+                      yaxis_title='Loss')
+    fig.show()
