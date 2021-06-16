@@ -7,7 +7,7 @@ from src.common.util import DatasetColumnName
 def filter_data():
     """ Remove movies from the dataset that were rated by less than 1% of users """
     df_rating = pd.read_csv(MAIN_FOLDER.parent / 'rating.csv')
-    df_tag = pd.read_csv(MAIN_FOLDER.parent / 'tag.csv')
+    df_tag = pd.read_csv(MAIN_FOLDER.parent / 'genome_scores.csv')
 
     n_users = int(len(df_rating[DatasetColumnName.USER_ID.value].unique()) * 0.01)
     print(f'Initial dataset size: {df_rating.shape[0]} ratings')
