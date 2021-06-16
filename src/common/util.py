@@ -14,7 +14,7 @@ class DatasetColumnName(Enum):
     MOVIE_ID = 'movieId'
     TIMESTAMP = 'timestamp'
     RATING = 'rating'
-    TAG = 'tag'
+    TAG_ID = 'tagId'
     RELEVANCE = 'relevance'
 
 
