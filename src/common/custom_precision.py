@@ -3,7 +3,8 @@ import pandas as pd
 from src.common.util import DatasetColumnName, EvaluationParams
 
 
-def compute_precision(predictions, validation_dataset_path: str, movie_filtered_ids, user_filtered_ids, users) -> float:
+def compute_precision(predictions, validation_dataset_path: str, movie_filtered_ids, user_filtered_ids, users,
+                      nested_pred=True) -> float:
     inverse_encoding_us = dict(zip(user_filtered_ids.values(), user_filtered_ids.keys()))
     inverse_encoding_mv = dict(zip(movie_filtered_ids.values(), movie_filtered_ids.keys()))
 
@@ -23,8 +24,9 @@ def compute_precision(predictions, validation_dataset_path: str, movie_filtered_
         true_positive, false_positive = 0, 0
 
         for movie in y_pred:
-
-            movie_id = inverse_encoding_mv[movie[0]]
+            if nested_pred:
+                movie = movie[0]
+            movie_id = inverse_encoding_mv[movie]
             if movie_id in relevant_movies:
                 true_positive += 1
             elif movie_id in irrelevant_movies:

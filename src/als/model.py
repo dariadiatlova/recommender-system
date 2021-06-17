@@ -7,7 +7,7 @@ import scipy.sparse as sparse
 from data import MAIN_FOLDER
 from src.common.util import DatasetColumnName, EvaluationParams, plot
 from src.common.custom_precision import compute_precision
-from typing import Tuple
+from typing import Tuple, List
 
 
 def configure_arguments(parser: argparse.ArgumentParser) -> None:
@@ -52,7 +52,6 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 class ALS:
-
     def __init__(self):
         self.sparse_item_user = None
         self.sparse_user_item = None
@@ -66,8 +65,7 @@ class ALS:
         df = pd.read_csv(data_path)
         movies = df[DatasetColumnName.MOVIE_ID.value]
         users = df[DatasetColumnName.USER_ID.value]
-        # rating = df[DatasetColumnName.RATING.value]
-        rating = df.iloc[:, 2]
+        rating = df[DatasetColumnName.RATING.value]
         return movies, users, rating
 
     def _get_data_encoded(self, data_path: str) -> None:
@@ -125,12 +123,14 @@ class ALS:
         self.irrelevant_movies = [movie for movie in unique_movie_keys if self.movie_filtered_ids[movie] not in unique_movies]
         self.relevant_users = [self.user_filtered_ids[user] for user in unique_users if user in unique_user_keys]
 
-    def get_encoded_predictions(self, model, val_dataset_path) -> None:
+    def get_encoded_predictions(self, model, val_dataset_path) -> List:
         self.filter_users_for_validation(val_dataset_path)
         self.predictions = []
         for user in self.relevant_users:
             top_k_movies = self.predict(model, user)
             self.predictions.append(top_k_movies)
+        predictions = [movie[1] for movie in self.predictions]
+        return predictions
 
     def predict(self, model, user: int) -> np.ndarray:
         top_k_movies = model.recommend(user,
@@ -144,6 +144,10 @@ class ALS:
         precision = compute_precision(self.predictions, validation_dataset_path, self.movie_filtered_ids,
                                       self.user_filtered_ids, self.relevant_users)
         return precision
+
+    def test(self, model) -> Tuple[List[int], List[int], dict]:
+        predictions = self.get_encoded_predictions(model, MAIN_FOLDER / 'test_rating.csv')
+        return predictions, self.relevant_users, self.movie_filtered_ids
 
 
 def main():
@@ -164,7 +168,7 @@ def main():
     plot(loss, args.iterations)
 
     if args.eval_mode:
-        als.get_encoded_predictions(model, args.val_dataset_path)
+        predictions = als.get_encoded_predictions(model, args.val_dataset_path)
         precision = als.get_metric(args.val_dataset_path)
         print(f'Precision@{EvaluationParams.K.value}\n{precision}')
 

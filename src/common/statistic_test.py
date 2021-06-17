@@ -2,11 +2,18 @@ import pandas as pd
 from typing import List
 from scipy.stats import chi2
 
+from data import MAIN_FOLDER
 from src.common.util import DatasetColumnName, EvaluationParams
+from src.als.test import test_als_model
+from src.light_fm.test import test_light_fm_model
 
 
-def count_contingency_table(predictions_als: List, predictions_light_fm: List, test_dataset_path: str,
-                            relevant_users: List, user_mapping: dict, item_mapping: dict, item_encoding) -> List:
+def count_contingency_table(predictions_als: List,
+                            predictions_light_fm: List,
+                            relevant_users: List,
+                            user_mapping: dict,
+                            item_mapping: dict,
+                            item_encoding: dict) -> List:
 
     """ McNemar test of homogeneity..
 
@@ -17,7 +24,7 @@ def count_contingency_table(predictions_als: List, predictions_light_fm: List, t
 
     """
 
-    df = pd.read_csv(test_dataset_path)
+    df = pd.read_csv(MAIN_FOLDER / 'test_rating.csv')
 
     # [correctly classified by both ALS and LightFM] [only by ALS] [only by LightFM] [classified wrong by both]
     yes_yes, yes_no, no_yes, no_no = 0, 0, 0, 0
@@ -65,3 +72,18 @@ def count_contingency_table(predictions_als: List, predictions_light_fm: List, t
             print('The results are statistically significant.')
     else:
         print('Can not calculate statistic. No values in yes/no, no/yes categories.')
+
+
+def main():
+    predictions_als, relevant_users, item_encoding = test_als_model()
+    predictions_light_fm, user_mapping, item_mapping, = test_light_fm_model()
+    count_contingency_table(predictions_als,
+                            predictions_light_fm,
+                            relevant_users,
+                            user_mapping,
+                            item_mapping,
+                            item_encoding)
+
+
+if __name__ == "main":
+    main()

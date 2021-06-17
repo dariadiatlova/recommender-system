@@ -1,8 +1,10 @@
 import argparse
 import numpy as np
 import pandas as pd
+
 from data import MAIN_FOLDER
 from lightfm import LightFM
+from typing import List, Tuple
 
 from src.common.custom_precision import compute_precision
 from src.common.util import EvaluationParams, DatasetColumnName
@@ -13,12 +15,12 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-ls', '--latent_size',
                         help='The dimensionality of the feature latent embeddings. Default is 10. ',
                         type=int,
-                        default=10)
+                        default=20)
 
     parser.add_argument('-lr', '--learning_rate',
                         help='The dimensionality of the feature latent embeddings. Default is 0.01.',
                         type=float,
-                        default=0.01)
+                        default=0.03)
 
     parser.add_argument('-ia', '--item_alpha',
                         help='L2 penalty on item features. Default is 1.',
@@ -28,13 +30,13 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-e', '--epochs',
                         help='Number of epochs for training. Default is 1.',
                         type=float,
-                        default=1)
+                        default=10)
 
 
 class ModelLightFM:
-    def __init__(self):
+    def __init__(self, val_rating_path):
         self.train_rating_path = MAIN_FOLDER.parent / 'train_rating.csv'
-        self.val_rating_path = MAIN_FOLDER.parent / 'val_rating.csv'
+        self.val_rating_path = val_rating_path
         self.tag_csv_path = MAIN_FOLDER.parent / 'filtered_tag.csv'
         self.predictions = None
         self.unique_movies = None
@@ -57,35 +59,37 @@ class ModelLightFM:
         model.fit(interactions, item_features=item_features, epochs=epochs, verbose=True)
         return model
 
-    def predict(self, latent_size: int, learning_rate: float, item_alpha: float, epochs: int) -> None:
+    def predict(self, latent_size: int, learning_rate: float, item_alpha: float, epochs: int) -> Tuple[List, dict, dict]:
         model = self.fit(latent_size, learning_rate, item_alpha, epochs)
 
-        self.unique_movies = list(self.mapping_item_ids.values())
-        unique_users = list(self.mapping_user_ids.keys())
+        self.unique_movies = self.mapping_item_ids.values()
+        unique_user_keys = self.mapping_user_ids.keys()
+
         df = pd.read_csv(self.val_rating_path)
-        val_users = df[DatasetColumnName.USER_ID.value]
-        self.users_to_predict = [self.mapping_user_ids[user] for user in val_users if user in unique_users]
-        self.users_to_predict = np.unique(self.users_to_predict)
+        val_users = df[DatasetColumnName.USER_ID.value].unique()
+
+        self.users_to_predict = [self.mapping_user_ids[user] for user in val_users if user in unique_user_keys]
         print(f'Model is fitted, start making predictions!')
-        predictions = []
+        self.predictions = []
 
         for i, user in enumerate(self.users_to_predict):
             print(f'\rPredicted top@{EvaluationParams.K.value} movies for {i}/{len(self.users_to_predict)} users...', end='')
-            scores = model.predict(np.array([user for _ in range(len(self.unique_movies))], dtype=np.int32),
-                                   self.unique_movies)
+            input_user_id = np.array([user for _ in range(len(self.unique_movies))], dtype=np.int32)
+            scores = model.predict(input_user_id, np.array(list(self.unique_movies), dtype=np.int32))
             movie_scores = dict(zip(self.unique_movies, scores))
-            sorted_movie_scores = {k: v for k, v in sorted(movie_scores.items(), key=lambda item: item[1])}
-            predictions.append(sorted_movie_scores.keys()[:EvaluationParams.K.value])
+            sorted_movie_scores = {k: v for k, v in sorted(movie_scores.items(), key=lambda item: item[1], reverse=True)}
+            self.predictions.append(list(sorted_movie_scores.keys())[:EvaluationParams.K.value])
         print(f'Predictions are saved! Let me compute precision@{EvaluationParams.K.value}.')
+        return self.predictions, self.mapping_user_ids, self.mapping_item_ids
 
     def get_metric(self) -> float:
         precision = compute_precision(self.predictions, self.val_rating_path, self.mapping_item_ids,
-                                      self.mapping_item_ids, self.users_to_predict)
+                                      self.mapping_user_ids, self.users_to_predict, nested_pred=False)
         return precision
 
 
 def main():
-    lightfm = ModelLightFM()
+    lightfm = ModelLightFM(MAIN_FOLDER.parent / 'val_rating.csv')
     parser = argparse.ArgumentParser()
     configure_arguments(parser)
     args = parser.parse_args()
