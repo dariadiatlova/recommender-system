@@ -145,9 +145,10 @@ class ALS:
                                       self.user_filtered_ids, self.relevant_users)
         return precision
 
-    def test(self, model) -> Tuple[List[int], List[int], dict]:
+    def test(self, model) -> Tuple[List[int], List[int], dict, dict, float]:
         predictions = self.get_encoded_predictions(model, MAIN_FOLDER / 'test_rating.csv')
-        return predictions, self.relevant_users, self.movie_filtered_ids
+        precision = self.get_metric(MAIN_FOLDER / 'test_rating.csv')
+        return predictions, self.relevant_users, self.movie_filtered_ids, self.user_filtered_ids, precision
 
 
 def main():

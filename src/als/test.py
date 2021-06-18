@@ -22,5 +22,5 @@ def test_als_model():
                             args.train_loss,
                             args.train_dataset_path)
 
-    predictions, relevant_users, item_encoding = als.test(model)
-    return predictions, relevant_users, item_encoding
+    predictions, relevant_users, item_encoding, user_encoding, precision = als.test(model)
+    return predictions, relevant_users, item_encoding, user_encoding, precision

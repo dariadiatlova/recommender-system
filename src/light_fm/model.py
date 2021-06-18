@@ -15,22 +15,22 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-ls', '--latent_size',
                         help='The dimensionality of the feature latent embeddings. Default is 10. ',
                         type=int,
-                        default=20)
+                        default=300)
 
     parser.add_argument('-lr', '--learning_rate',
                         help='The dimensionality of the feature latent embeddings. Default is 0.01.',
                         type=float,
-                        default=0.03)
+                        default=0.001)
 
     parser.add_argument('-ia', '--item_alpha',
-                        help='L2 penalty on item features. Default is 1.',
+                        help='L2 penalty on item features. Default is 0.',
                         type=float,
                         default=0)
 
     parser.add_argument('-e', '--epochs',
                         help='Number of epochs for training. Default is 1.',
                         type=float,
-                        default=10)
+                        default=2)
 
 
 class ModelLightFM:
@@ -48,7 +48,8 @@ class ModelLightFM:
 
         model = LightFM(no_components=latent_size,
                         learning_schedule="adagrad",
-                        loss="logistic",
+                        loss="warp",
+                        # loss="logistic",
                         learning_rate=learning_rate,
                         item_alpha=item_alpha,
                         random_state=EvaluationParams.SEED.value)
@@ -59,7 +60,8 @@ class ModelLightFM:
         model.fit(interactions, item_features=item_features, epochs=epochs, verbose=True)
         return model
 
-    def predict(self, latent_size: int, learning_rate: float, item_alpha: float, epochs: int) -> Tuple[List, dict, dict]:
+    def predict(self, latent_size: int, learning_rate: float, item_alpha: float, epochs: int) -> Tuple[List, List,
+                                                                                                       dict, dict]:
         model = self.fit(latent_size, learning_rate, item_alpha, epochs)
 
         self.unique_movies = self.mapping_item_ids.values()
@@ -80,7 +82,7 @@ class ModelLightFM:
             sorted_movie_scores = {k: v for k, v in sorted(movie_scores.items(), key=lambda item: item[1], reverse=True)}
             self.predictions.append(list(sorted_movie_scores.keys())[:EvaluationParams.K.value])
         print(f'Predictions are saved! Let me compute precision@{EvaluationParams.K.value}.')
-        return self.predictions, self.mapping_user_ids, self.mapping_item_ids
+        return self.predictions, self.users_to_predict, self.mapping_user_ids, self.mapping_item_ids
 
     def get_metric(self) -> float:
         precision = compute_precision(self.predictions, self.val_rating_path, self.mapping_item_ids,

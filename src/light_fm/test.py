@@ -9,8 +9,9 @@ def test_light_fm_model():
     parser = argparse.ArgumentParser()
     configure_arguments(parser)
     args = parser.parse_args()
-    predictions, user_mapping_ids, item_mapping_ids = lightfm.predict(args.latent_size,
-                                                                      args.learning_rate,
-                                                                      args.item_alpha,
-                                                                      args.epochs)
-    return predictions, item_mapping_ids
+    predictions, light_fm_relevant_users, user_mapping_ids, item_mapping_ids = lightfm.predict(args.latent_size,
+                                                                                               args.learning_rate,
+                                                                                               args.item_alpha,
+                                                                                               args.epochs)
+    precision = lightfm.get_metric()
+    return predictions, light_fm_relevant_users, user_mapping_ids, item_mapping_ids, precision
