@@ -129,8 +129,7 @@ class ALS:
         for user in self.relevant_users:
             top_k_movies = self.predict(model, user)
             self.predictions.append(top_k_movies)
-        predictions = [movie[1] for movie in self.predictions]
-        return predictions
+        return self.predictions
 
     def predict(self, model, user: int) -> np.ndarray:
         top_k_movies = model.recommend(user,
@@ -146,8 +145,8 @@ class ALS:
         return precision
 
     def test(self, model) -> Tuple[List[int], List[int], dict, dict, float]:
-        predictions = self.get_encoded_predictions(model, MAIN_FOLDER / 'test_rating.csv')
-        precision = self.get_metric(MAIN_FOLDER / 'test_rating.csv')
+        predictions = self.get_encoded_predictions(model, MAIN_FOLDER.parent / 'test_rating.csv')
+        precision = self.get_metric(MAIN_FOLDER.parent / 'test_rating.csv')
         return predictions, self.relevant_users, self.movie_filtered_ids, self.user_filtered_ids, precision
 
 

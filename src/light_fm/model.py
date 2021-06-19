@@ -15,7 +15,7 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-ls', '--latent_size',
                         help='The dimensionality of the feature latent embeddings. Default is 10. ',
                         type=int,
-                        default=300)
+                        default=10)
 
     parser.add_argument('-lr', '--learning_rate',
                         help='The dimensionality of the feature latent embeddings. Default is 0.01.',
@@ -30,7 +30,7 @@ def configure_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-e', '--epochs',
                         help='Number of epochs for training. Default is 1.',
                         type=float,
-                        default=2)
+                        default=1)
 
 
 class ModelLightFM:
@@ -75,13 +75,13 @@ class ModelLightFM:
         self.predictions = []
 
         for i, user in enumerate(self.users_to_predict):
-            print(f'\rPredicted top@{EvaluationParams.K.value} movies for {i}/{len(self.users_to_predict)} users...', end='')
+            print(f'\rPredicted top@{EvaluationParams.K.value} movies for {i+1}/{len(self.users_to_predict)} users...', end="")
             input_user_id = np.array([user for _ in range(len(self.unique_movies))], dtype=np.int32)
             scores = model.predict(input_user_id, np.array(list(self.unique_movies), dtype=np.int32))
             movie_scores = dict(zip(self.unique_movies, scores))
             sorted_movie_scores = {k: v for k, v in sorted(movie_scores.items(), key=lambda item: item[1], reverse=True)}
             self.predictions.append(list(sorted_movie_scores.keys())[:EvaluationParams.K.value])
-        print(f'Predictions are saved! Let me compute precision@{EvaluationParams.K.value}.')
+        print(f'\n Predictions are saved! Let me compute precision@{EvaluationParams.K.value}.')
         return self.predictions, self.users_to_predict, self.mapping_user_ids, self.mapping_item_ids
 
     def get_metric(self) -> float:
